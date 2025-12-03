@@ -59,13 +59,7 @@ exports/
 temp/
 .cache/
 
-# Documentation files (exclude from GitHub)
-*.md
-*.pdf
-*.pptx
-*.docx
-
-# Documentation directories
+# Documentation files (exclude from GitHub, but keep README.md)
 GETTING_STARTED.md
 USER_GUIDE.md
 TECHNICAL_DOCUMENTATION.md
@@ -73,5 +67,26 @@ PROJECT_SUMMARY.md
 PROJECT_REPORT_OUTLINE.md
 POSTER_GUIDE.md
 QUICK_REFERENCE.md
+POSTER_CONTENT.md
+REPORT_COMPILATION.md
+
+# LaTeX files
+*.tex
+*.bib
+
+# PDF and Office files
+*.pdf
+*.pptx
+*.docx
+
+# Archive files
+*.zip
+
+# Screenshots and temporary images (keep sample_images/)
+Screenshot*.png
+*.webp
+UI overview.png
+comparison.png
+how-to-repair-a-damaged-canvas-3-1.webp
 
 

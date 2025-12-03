@@ -92,17 +92,43 @@ def create_comparison(original: np.ndarray,
     Returns:
         Comparison image
     """
+    # Ensure both images have the same number of channels
+    # Remove alpha channel if present (4 channels -> 3 channels)
+    if len(original.shape) == 3 and original.shape[2] == 4:
+        original = original[:, :, :3]
+    if len(restored.shape) == 3 and restored.shape[2] == 4:
+        restored = restored[:, :, :3]
+    
+    # Ensure both images are same height for side-by-side
     if mode == 'side-by-side':
+        h1, w1 = original.shape[:2]
+        h2, w2 = restored.shape[:2]
+        if h1 != h2:
+            # Resize to match height
+            scale = h1 / h2
+            new_w2 = int(w2 * scale)
+            restored = cv2.resize(restored, (new_w2, h1), interpolation=cv2.INTER_AREA)
         # Place images side by side horizontally
         comparison = np.hstack([original, restored])
         
     elif mode == 'vertical':
+        # Ensure both images are same width for vertical stacking
+        h1, w1 = original.shape[:2]
+        h2, w2 = restored.shape[:2]
+        if w1 != w2:
+            # Resize to match width
+            scale = w1 / w2
+            new_h2 = int(h2 * scale)
+            restored = cv2.resize(restored, (w1, new_h2), interpolation=cv2.INTER_AREA)
         # Stack images vertically
         comparison = np.vstack([original, restored])
         
     elif mode == 'split':
         # Split view: left half original, right half restored
         h, w = original.shape[:2]
+        # Resize restored to match original dimensions
+        if restored.shape[:2] != (h, w):
+            restored = cv2.resize(restored, (w, h), interpolation=cv2.INTER_AREA)
         comparison = original.copy()
         comparison[:, w//2:] = restored[:, w//2:]
         
@@ -227,5 +253,158 @@ def add_text_overlay(image: np.ndarray,
     cv2.putText(result, text, position, font, font_scale, color, thickness)
     
     return result
+
+
+def rotate_image(image: np.ndarray, angle: float) -> np.ndarray:
+    """
+    Rotate image by specified angle.
+    
+    Args:
+        image: Input image
+        angle: Rotation angle in degrees (positive = counterclockwise)
+        
+    Returns:
+        Rotated image
+    """
+    h, w = image.shape[:2]
+    center = (w // 2, h // 2)
+    rotation_matrix = cv2.getRotationMatrix2D(center, angle, 1.0)
+    
+    # Calculate new dimensions
+    cos = np.abs(rotation_matrix[0, 0])
+    sin = np.abs(rotation_matrix[0, 1])
+    new_w = int((h * sin) + (w * cos))
+    new_h = int((h * cos) + (w * sin))
+    
+    # Adjust rotation matrix for new center
+    rotation_matrix[0, 2] += (new_w / 2) - center[0]
+    rotation_matrix[1, 2] += (new_h / 2) - center[1]
+    
+    rotated = cv2.warpAffine(image, rotation_matrix, (new_w, new_h), 
+                            flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT,
+                            borderValue=(0, 0, 0))
+    return rotated
+
+
+def flip_image(image: np.ndarray, direction: str = 'horizontal') -> np.ndarray:
+    """
+    Flip image horizontally or vertically.
+    
+    Args:
+        image: Input image
+        direction: 'horizontal' or 'vertical'
+        
+    Returns:
+        Flipped image
+    """
+    if direction == 'horizontal':
+        return cv2.flip(image, 1)
+    elif direction == 'vertical':
+        return cv2.flip(image, 0)
+    else:
+        raise ValueError("Direction must be 'horizontal' or 'vertical'")
+
+
+def calculate_psnr(img1: np.ndarray, img2: np.ndarray) -> float:
+    """
+    Calculate Peak Signal-to-Noise Ratio between two images.
+    
+    Args:
+        img1: First image
+        img2: Second image
+        
+    Returns:
+        PSNR value in dB
+    """
+    # Ensure images are same size
+    if img1.shape != img2.shape:
+        h, w = min(img1.shape[0], img2.shape[0]), min(img1.shape[1], img2.shape[1])
+        img1 = img1[:h, :w]
+        img2 = img2[:h, :w]
+    
+    # Calculate MSE
+    mse = np.mean((img1.astype(np.float64) - img2.astype(np.float64)) ** 2)
+    
+    if mse == 0:
+        return float('inf')  # Images are identical
+    
+    # Calculate PSNR
+    max_pixel = 255.0
+    psnr = 20 * np.log10(max_pixel / np.sqrt(mse))
+    
+    return float(psnr)
+
+
+def calculate_ssim(img1: np.ndarray, img2: np.ndarray) -> float:
+    """
+    Calculate Structural Similarity Index between two images.
+    Simplified SSIM calculation.
+    
+    Args:
+        img1: First image
+        img2: Second image
+        
+    Returns:
+        SSIM value (0-1, higher is better)
+    """
+    # Ensure images are same size
+    if img1.shape != img2.shape:
+        h, w = min(img1.shape[0], img2.shape[0]), min(img1.shape[1], img2.shape[1])
+        img1 = img1[:h, :w]
+        img2 = img2[:h, :w]
+    
+    # Convert to grayscale if needed
+    if len(img1.shape) == 3:
+        img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    if len(img2.shape) == 3:
+        img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+    
+    # Constants
+    C1 = (0.01 * 255) ** 2
+    C2 = (0.03 * 255) ** 2
+    
+    # Calculate means
+    mu1 = cv2.GaussianBlur(img1.astype(np.float64), (11, 11), 1.5)
+    mu2 = cv2.GaussianBlur(img2.astype(np.float64), (11, 11), 1.5)
+    
+    mu1_sq = mu1 ** 2
+    mu2_sq = mu2 ** 2
+    mu1_mu2 = mu1 * mu2
+    
+    # Calculate sigma
+    sigma1_sq = cv2.GaussianBlur((img1.astype(np.float64) ** 2), (11, 11), 1.5) - mu1_sq
+    sigma2_sq = cv2.GaussianBlur((img2.astype(np.float64) ** 2), (11, 11), 1.5) - mu2_sq
+    sigma12 = cv2.GaussianBlur((img1.astype(np.float64) * img2.astype(np.float64)), (11, 11), 1.5) - mu1_mu2
+    
+    # Calculate SSIM
+    numerator = (2 * mu1_mu2 + C1) * (2 * sigma12 + C2)
+    denominator = (mu1_sq + mu2_sq + C1) * (sigma1_sq + sigma2_sq + C2)
+    
+    ssim = numerator / denominator
+    
+    return float(np.mean(ssim))
+
+
+def crop_image(image: np.ndarray, x: int, y: int, width: int, height: int) -> np.ndarray:
+    """
+    Crop image to specified region.
+    
+    Args:
+        image: Input image
+        x: Top-left x coordinate
+        y: Top-left y coordinate
+        width: Crop width
+        height: Crop height
+        
+    Returns:
+        Cropped image
+    """
+    h, w = image.shape[:2]
+    x = max(0, min(x, w))
+    y = max(0, min(y, h))
+    width = min(width, w - x)
+    height = min(height, h - y)
+    
+    return image[y:y+height, x:x+width]
 
 

@@ -39,12 +39,39 @@ class InpaintingEngine:
         if method not in self.methods:
             raise ValueError(f"Unknown method: {method}. Choose from {list(self.methods.keys())}")
         
+        # Ensure image is in correct format for OpenCV inpainting
+        # OpenCV requires: 8-bit unsigned (uint8), 1-channel (grayscale) or 3-channel (BGR)
+        if image.dtype != np.uint8:
+            # Convert to uint8 if needed
+            if image.dtype == np.float32 or image.dtype == np.float64:
+                # Assume values are in [0, 1] range, convert to [0, 255]
+                if image.max() <= 1.0:
+                    image = (image * 255).astype(np.uint8)
+                else:
+                    image = np.clip(image, 0, 255).astype(np.uint8)
+            else:
+                image = np.clip(image, 0, 255).astype(np.uint8)
+        
+        # Handle multi-channel images (remove alpha channel if present)
+        if len(image.shape) == 3 and image.shape[2] == 4:
+            # Remove alpha channel (RGBA -> RGB)
+            image = image[:, :, :3]
+        
         # Ensure mask is single channel binary
         if len(mask.shape) == 3:
             mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
         
+        # Ensure mask is uint8
+        if mask.dtype != np.uint8:
+            mask = mask.astype(np.uint8)
+        
         # Ensure mask is binary (0 or 255)
         _, mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
+        
+        # Ensure image and mask have same dimensions
+        if image.shape[:2] != mask.shape[:2]:
+            # Resize mask to match image
+            mask = cv2.resize(mask, (image.shape[1], image.shape[0]), interpolation=cv2.INTER_NEAREST)
         
         # Perform inpainting
         result = cv2.inpaint(image, mask, radius, self.methods[method])
@@ -75,7 +102,8 @@ class InpaintingEngine:
     def multi_scale_inpaint(self,
                            image: np.ndarray,
                            mask: np.ndarray,
-                           scales: int = 3) -> np.ndarray:
+                           scales: int = 3,
+                           progress_callback=None) -> np.ndarray:
         """
         Perform multi-scale inpainting for better results on large regions.
         
@@ -83,6 +111,7 @@ class InpaintingEngine:
             image: Input image
             mask: Binary mask
             scales: Number of scales to use
+            progress_callback: Optional callback function(iteration, total) for progress updates
             
         Returns:
             Inpainted image
@@ -92,6 +121,10 @@ class InpaintingEngine:
         
         # Start with coarse scale and refine
         for scale in range(scales):
+            # Update progress if callback provided
+            if progress_callback:
+                progress_callback(scale + 1, scales)
+            
             # Inpaint at current scale
             radius = max(3, 10 - scale * 2)
             result = self.inpaint(result, current_mask, method='telea', radius=radius)
