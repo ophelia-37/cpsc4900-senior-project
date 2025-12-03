@@ -351,7 +351,7 @@ This will:
 
 - **Advisor**: Alex Wong
 - **Course**: CPSC 4900 - Senior Project
-- **Institution**: [Your University]
+- **Institution**: Yale University
 - **Year**: 2024-2025
 
 ---
