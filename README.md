@@ -45,11 +45,12 @@ This application enables users to digitally restore damaged or faded artwork thr
 ### 🖌️ Interactive Inpainting
 - **Multiple Drawing Tools**: Freedraw, line, rectangle, circle, and transform tools
 - **Adjustable Brush Size**: 1-50 pixels for precise mask creation
-- **4 Inpainting Algorithms**:
+- **5 Inpainting Algorithms**:
   - Telea Fast Marching Method (fast, efficient)
   - Navier-Stokes based (structure-preserving)
   - Multi-scale progressive (for large regions)
   - Edge-preserving (maintains structural integrity)
+  - **Deep Learning (LaMa-style)** - Optional, requires PyTorch (see [Deep Learning Setup](DEEP_LEARNING_SETUP.md))
 
 ### 🎨 Color Correction & Enhancement
 - **Automatic Enhancement**: One-click auto-enhancement pipeline
@@ -163,6 +164,7 @@ streamlit run app.py
    - **Navier-Stokes**: Better for preserving structure
    - **Multi-Scale**: Best for large damaged areas
    - **Edge-Preserving**: Maintains edges and patterns
+   - **Deep Learning**: High-quality results using neural networks (requires PyTorch)
 6. Click "Apply Inpainting"
 7. Review the result and click "Accept Restoration" if satisfied
 
@@ -251,6 +253,13 @@ cpsc4900-senior-project/
    - Combines Canny edge detection with inpainting
    - Maintains structural integrity
    - Good for: Images with strong edges and patterns
+
+5. **Deep Learning Inpainting** (Optional)
+   - Framework for integrating pre-trained neural network models
+   - Supports LaMa, MI-GAN, and CoordFill architectures
+   - Requires: PyTorch installation
+   - See [DEEP_LEARNING_SETUP.md](DEEP_LEARNING_SETUP.md) for setup instructions
+   - Currently uses enhanced classical methods as fallback until model weights are loaded
 
 ### Color Correction Methods
 

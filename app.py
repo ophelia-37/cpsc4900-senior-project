@@ -274,7 +274,7 @@ def page_upload():
                 file_name=f"restoration_project_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pkl",
                 mime="application/octet-stream",
                 use_container_width=True
-            )
+    )
     
     if uploaded_file is not None:
         # Load image
@@ -297,7 +297,7 @@ def page_upload():
             with col1:
                 st.subheader("Original Image")
                 st.image(cv2_to_pil(cv2_image), use_column_width=True)
-                
+            
             with col2:
                 st.subheader("Image Information")
                 height, width = cv2_image.shape[:2]
@@ -376,12 +376,26 @@ def page_inpainting():
         st.markdown("---")
         st.subheader("Inpainting Method")
         
+        # Check if deep learning is available
+        try:
+            from restoration.deep_inpainting import TORCH_AVAILABLE
+            deep_learning_available = TORCH_AVAILABLE
+        except:
+            deep_learning_available = False
+        
+        method_options = ["Telea (Fast)", "Navier-Stokes (Structure)", "Multi-Scale", "Edge-Preserving"]
+        if deep_learning_available:
+            method_options.append("Deep Learning (LaMa-style)")
+        
         inpaint_method = st.selectbox(
             "Algorithm",
-            ["Telea (Fast)", "Navier-Stokes (Structure)", "Multi-Scale", "Edge-Preserving"],
-            help="Choose inpainting algorithm",
+            method_options,
+            help="Choose inpainting algorithm" + (" (Deep Learning requires PyTorch)" if not deep_learning_available else ""),
             key="inpaint_method_select"
         )
+        
+        if deep_learning_available and "Deep Learning" in inpaint_method:
+            st.info("🧠 Using deep learning model. This may take longer but produces higher quality results.")
         
         # Store radius in session state
         if "Telea" in inpaint_method or "Navier-Stokes" in inpaint_method:
@@ -442,7 +456,7 @@ def page_inpainting():
                 else:
                     mask = mask_display
                 st.session_state.mask = mask
-        
+    
         # Show mask statistics
         if st.session_state.mask is not None and st.session_state.mask.max() > 0:
             mask_binary = (st.session_state.mask > 127).astype(np.uint8) * 255
@@ -543,7 +557,7 @@ def apply_inpainting(method: str):
             
             # Prepare mask
             mask = (st.session_state.mask > 127).astype(np.uint8) * 255
-            
+        
             # Process based on method
             if "Telea" in method:
                 restored = engine.inpaint(
@@ -568,6 +582,12 @@ def apply_inpainting(method: str):
                 restored = engine.edge_preserving_inpaint(
                     st.session_state.working_image,
                     mask
+                )
+            elif "Deep Learning" in method:
+                restored = engine.deep_learning_inpaint(
+                    st.session_state.working_image,
+                    mask,
+                    model_type='lama'
                 )
             else:
                 restored = engine.inpaint(st.session_state.working_image, mask)

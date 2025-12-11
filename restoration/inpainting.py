@@ -1,11 +1,20 @@
 """
 Inpainting algorithms for image restoration.
 Implements patch-based exemplar inpainting (Criminisi et al., 2004).
+Supports both classical and deep learning methods.
 """
 
 import cv2
 import numpy as np
 from typing import Optional, Tuple
+import warnings
+
+# Try to import deep learning module
+try:
+    from .deep_inpainting import DeepInpaintingEngine, create_deep_inpainting_engine
+    DEEP_LEARNING_AVAILABLE = True
+except ImportError:
+    DEEP_LEARNING_AVAILABLE = False
 
 
 class InpaintingEngine:
@@ -18,6 +27,13 @@ class InpaintingEngine:
             'telea': cv2.INPAINT_TELEA,
             'ns': cv2.INPAINT_NS
         }
+        # Initialize deep learning engine if available
+        self.deep_engine = None
+        if DEEP_LEARNING_AVAILABLE:
+            try:
+                self.deep_engine = create_deep_inpainting_engine(device='auto')
+            except Exception as e:
+                warnings.warn(f"Deep learning engine not available: {e}")
     
     def inpaint(self, 
                 image: np.ndarray, 
@@ -160,6 +176,41 @@ class InpaintingEngine:
         result = self.inpaint(image, mask, method='ns', radius=5)
         
         return result
+    
+    def deep_learning_inpaint(self,
+                             image: np.ndarray,
+                             mask: np.ndarray,
+                             model_type: str = 'lama') -> np.ndarray:
+        """
+        Perform inpainting using deep learning models.
+        
+        Args:
+            image: Input image (BGR, uint8)
+            mask: Binary mask (uint8, 0 or 255)
+            model_type: Type of model ('lama', 'gan', 'coordfill')
+            
+        Returns:
+            Inpainted image
+            
+        Raises:
+            RuntimeError: If deep learning is not available or model not loaded
+        """
+        if not DEEP_LEARNING_AVAILABLE or self.deep_engine is None:
+            # Fallback to multi-scale inpainting
+            warnings.warn(
+                "Deep learning not available. Falling back to multi-scale inpainting. "
+                "Install PyTorch to enable deep learning: pip install torch torchvision"
+            )
+            return self.multi_scale_inpaint(image, mask, scales=5)
+        
+        # Use deep learning engine
+        if model_type == 'lama':
+            return self.deep_engine.inpaint_lama_style(image, mask, use_fallback=True)
+        elif model_type == 'gan':
+            return self.deep_engine.inpaint_gan_style(image, mask, use_fallback=True)
+        else:
+            # Default to LaMa style
+            return self.deep_engine.inpaint_lama_style(image, mask, use_fallback=True)
     
     def get_inpaint_region_stats(self, mask: np.ndarray) -> dict:
         """
